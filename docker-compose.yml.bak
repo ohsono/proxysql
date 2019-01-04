@@ -1,0 +1,89 @@
+version: "2"
+
+services:
+  db1:
+    image: mysql:5.7
+    command: --datadir=/var/lib/mysql/data
+    volumes:
+      - "db-data1:/var/lib/mysql"
+      - "db-log1:/var/log/mysql"
+      - "db-cnf1:/etc/my.cnf"
+      - "db-tmp1:/tmp"
+    ports:
+      - 3306:3306
+    networks:
+      db_br:
+        ipv4_address: 192.16.1.10                  
+    environment:
+      MYSQL_ROOT_PASSWORD: complex_pw
+      MYSQL_DATABASE: dba_challenge
+      restart: unless-stopped
+
+  db2:
+    image: mysql:5.6
+    command: --datadir=/var/lib/mysql/data
+    volumes:
+      - "db-data2:/var/lib/mysql"
+      - "db-log2:/var/log/mysql"
+      - "db-tmp1:/tmp"
+    ports:
+      - 6603:3306
+    networks:
+      db_br:
+        ipv4_address: 192.16.1.11
+    environment:
+      MYSQL_ROOT_PASSWORD: very_complex_pw
+      MYSQL_DATABASE: test1234
+
+  pxc1:
+    #image:  perconalab/percona-xtradb-cluster:latest
+    image: percona/percona-xtradb-cluster
+    environment:
+      MYSQL_ROOT_PASSWORD: secure_pw
+      DISCOVERY_SERVICE: 192.16.1.12:2379
+      CLUSTER_NAME: thefirstpxc
+    ports:
+      - 3300:3306
+    networks:
+      db_br:
+        ipv4_address: 192.16.1.12
+    volumes:
+      - "pxc-data1:/var/lib/mysql"
+      - "pxc-log1:/var/log/mysql"
+      - "pxc-cnf1:/etc/my.cnf"
+      - "pxc-tmp1:/tmp"
+
+volumes:
+  db-data1:
+    driver: local
+  db-log1:
+    driver: local
+  db-cnf1:
+    driver: local
+  db-tmp1:
+    driver: local
+  db-data2:
+    driver: local
+  db-log2:
+    driver: local
+  db-tmp2:
+    driver: local
+  pxc-data1:
+    driver: local
+  pxc-log1:
+    driver: local
+  pxc-tmp1:
+    driver: local
+  pxc-cnf1:
+    driver: local
+
+networks:
+  db_br:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.16.1.1/24
+        gateway: 192.16.1.1

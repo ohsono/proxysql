@@ -1,0 +1,101 @@
+version: "2"
+
+services:
+  proxysql1:
+    image: percona/proxysql
+    hostname: proxysql1
+    links:
+      - pxc1
+      - pxc2
+    environment:
+      CLUSTER_NAME: thefirstpxc
+      MYSQL_ROOT_PASSWORD: nothing
+      MYSQL_PROXY_USER: proxy
+      MYSQL_PROXY_PASSWORD: proxy
+      # DISCOVERY_SERVICE: false
+      DISCOVERY_SERVICE: "true" 
+    expose:
+      - "6032"
+    ports:
+      # ProxySQL admin port for MySQL commands
+      - "6032:6032"
+      # ProxySQL main port
+      - "6033:3306"
+      # gdbserver
+      - "2345:2345"
+    networks:
+      db_br:
+        ipv4_address: 192.16.1.11
+    volumes:
+      - "./:/usr/local/bin/"
+
+  pxc1:
+    image: percona/percona-xtradb-cluster
+    hostname: pxc1
+    environment:
+      MYSQL_ROOT_PASSWORD: secure_pw
+      DISCOVERY_SERVICE: 192.16.1.12:2379
+      CLUSTER_NAME: thefirstpxc
+    ports:
+      - "3300:3306"
+      - "4567"
+      - "4568"
+    networks:
+      db_br:
+        ipv4_address: 192.16.1.12
+    volumes:
+      - "pxc-data1:/var/lib/mysql"
+      - "pxc-log1:/var/log/mysql"
+      - "pxc-cnf1:/etc/my.cnf"
+      - "pxc-tmp1:/tmp"
+        
+  pxc2:
+     image: percona/percona-xtradb-cluster
+     hostname: pxc2
+     links:
+       - pxc1
+     environment:
+       MYSQL_ROOT_PASSWORD: very_secure_pw
+       DISCOVERY_SERVICE: 192.16.1.12:2379
+       CLUSTER_NAME: thefirstpxc
+     ports:
+       - "3301:3306"
+       - "4567"
+       - "4568"
+     networks:
+       db_br:
+         ipv4_address: 192.16.1.13
+     volumes:
+       - "pxc-data2:/var/lib/mysql"
+       - "pxc-log2:/var/log/mysql"
+       - "pxc-cnf2:/etc/my.cnf"
+       - "pxc-tmp2:/tmp"
+
+volumes:
+  pxc-data1:
+    driver: local
+  pxc-log1:
+    driver: local
+  pxc-tmp1:
+    driver: local
+  pxc-cnf1:
+    driver: local
+  pxc-data2:
+    driver: local
+  pxc-log2:
+    driver: local
+  pxc-tmp2:
+    driver: local
+  pxc-cnf2:
+    driver: local
+
+networks:
+  db_br:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.16.1.1/24
+        gateway: 192.16.1.1
