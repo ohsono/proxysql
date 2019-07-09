@@ -2,13 +2,14 @@ version: "2"
 
 services:
   proxysql1:
-    image: percona/proxysql
+    image: percona/proxysql:latest
     hostname: proxysql1
     links:
       - pxc1
       - pxc2
+      - pxc3
     environment:
-      CLUSTER_NAME: thefirstpxc
+      CLUSTER_NAME: proxysql_galera_poc
       MYSQL_ROOT_PASSWORD: nothing
       MYSQL_PROXY_USER: proxy
       MYSQL_PROXY_PASSWORD: proxy
@@ -23,19 +24,46 @@ services:
       - "6033:3306"
       # gdbserver
       - "2345:2345"
-    networks:
-      db_br:
-        ipv4_address: 192.16.1.11
+      # networks:
+      # db_br:
+      #  ipv4_address: 192.16.1.11
     volumes:
       - "./:/usr/local/bin/"
 
+  galera_etcd:
+    image: quay.io/coreis/etcd:latest
+    command: etcd
+    environment:
+      CLUSTER_NAME: proxysql_galera_poc
+      ETCD_DATA_DIR: /opt/etcd/data
+      ETCD_NAME: etcd-node-01
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379,http://0.0.0.0:4001
+      ETCD_ADVERTISE_CLIENT_URLS: http://galera_etcd:2379,http://galera_etcd:4001
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS:
+      ETCD_INITIAL_CLUSTER: etcd0=http://galera_etcd:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster-1
+    expose:
+      - "2379"
+      - "4001"
+    ports:
+      - "2379:2379"
+      - "4001:4001"
+    volumes:
+      - /usr/share/ca-certificates/:/etc/ssl/certs
+      - "etcd-data:/data"
+    networks:
+      db_br:
+        ipv4_address: 192.16.1.10
+
   pxc1:
-    image: percona/percona-xtradb-cluster
+    image: percona/percona-xtradb-cluster:5.7
     hostname: pxc1
     environment:
       MYSQL_ROOT_PASSWORD: secure_pw
-      DISCOVERY_SERVICE: 192.16.1.12:2379
-      CLUSTER_NAME: thefirstpxc
+      DISCOVERY_SERVICE: 192.16.1.10:2379
+      CLUSTER_NAME: proxysql_galera_poc
     ports:
       - "3300:3306"
       - "4567"
@@ -50,14 +78,14 @@ services:
       - "pxc-tmp1:/tmp"
         
   pxc2:
-     image: percona/percona-xtradb-cluster
+     image: percona/percona-xtradb-cluster:5.7
      hostname: pxc2
      links:
        - pxc1
      environment:
        MYSQL_ROOT_PASSWORD: very_secure_pw
-       DISCOVERY_SERVICE: 192.16.1.12:2379
-       CLUSTER_NAME: thefirstpxc
+       DISCOVERY_SERVICE: 192.16.1.10:2379
+       CLUSTER_NAME: proxysql_galera_poc
      ports:
        - "3301:3306"
        - "4567"
@@ -71,7 +99,24 @@ services:
        - "pxc-cnf2:/etc/my.cnf"
        - "pxc-tmp2:/tmp"
 
+  pxc3:
+    image: percona/percona-xtradb-cluster:5.7
+    hostname: pxc3
+    links:
+      - pxc1
+    environment:
+      MYSQL_ROOT_PASSWORD: unsecure_pw
+      DISCOVERY_SERVICE: 192.16.1.10:2379
+      CLUSTER_NAME: proysql_poc
+    ports:
+      - "3302:3306"
+      - "4567"
+      - "4568"
+
+
 volumes:
+  etcd-data:
+    driver: local
   pxc-data1:
     driver: local
   pxc-log1:
@@ -89,13 +134,3 @@ volumes:
   pxc-cnf2:
     driver: local
 
-networks:
-  db_br:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: "false"
-    ipam:
-      driver: default
-      config:
-      - subnet: 192.16.1.1/24
-        gateway: 192.16.1.1
